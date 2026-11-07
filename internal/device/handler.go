@@ -25,6 +25,7 @@ func (h *Handler) Register(r *gin.Engine) {
 	r.GET("/devices/:id", h.get)
 	r.PUT("/devices/:id", h.update)
 	r.PATCH("/devices/:id", h.patch)
+	r.DELETE("/devices/:id", h.delete)
 }
 
 type deviceRequest struct {
@@ -131,6 +132,19 @@ func (h *Handler) patch(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, d)
+}
+
+func (h *Handler) delete(c *gin.Context) {
+	id, ok := parseID(c)
+	if !ok {
+		return
+	}
+
+	if err := h.store.Delete(c.Request.Context(), id); err != nil {
+		handleError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 // list handles both "list all" and "search by brand" via ?brand=

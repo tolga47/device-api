@@ -21,6 +21,7 @@ func NewHandler(store *Store) *Handler {
 
 func (h *Handler) Register(r *gin.Engine) {
 	r.POST("/devices", h.create)
+	r.GET("/devices", h.list)
 	r.GET("/devices/:id", h.get)
 }
 
@@ -66,6 +67,16 @@ func (h *Handler) get(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, d)
+}
+
+// list handles both "list all" and "search by brand" via ?brand=
+func (h *Handler) list(c *gin.Context) {
+	devices, err := h.store.List(c.Request.Context(), c.Query("brand"))
+	if err != nil {
+		handleError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, devices)
 }
 
 func parseID(c *gin.Context) (int64, bool) {

@@ -62,6 +62,33 @@ func (s *Store) Get(ctx context.Context, id int64) (Device, error) {
 	return d, err
 }
 
+// List returns all devices, or only the ones matching brand if it's not empty.
+func (s *Store) List(ctx context.Context, brand string) ([]Device, error) {
+	query := "SELECT id, name, brand, created_at FROM devices"
+	args := []any{}
+	if brand != "" {
+		query += " WHERE brand = ? COLLATE NOCASE"
+		args = append(args, brand)
+	}
+	query += " ORDER BY id"
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	devices := []Device{}
+	for rows.Next() {
+		var d Device
+		if err := rows.Scan(&d.ID, &d.Name, &d.Brand, &d.CreatedAt); err != nil {
+			return nil, err
+		}
+		devices = append(devices, d)
+	}
+	return devices, rows.Err()
+}
+
 func (s *Store) Update(ctx context.Context, d Device) error {
 	res, err := s.db.ExecContext(ctx,
 		"UPDATE devices SET name = ?, brand = ? WHERE id = ?",

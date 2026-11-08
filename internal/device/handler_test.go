@@ -21,6 +21,7 @@ func setupRouter(t *testing.T) *gin.Engine {
 	t.Cleanup(func() { store.Close() })
 
 	r := gin.New()
+	r.HandleMethodNotAllowed = true
 	NewHandler(store).Register(r)
 	return r
 }
@@ -65,12 +66,27 @@ func TestCreateDevice(t *testing.T) {
 func TestCreateDeviceValidation(t *testing.T) {
 	r := setupRouter(t)
 
-	bodies := []string{`{"name":"iPhone"}`, `{"brand":"Apple"}`, `not json`}
+	bodies := []string{
+		`{"name":"iPhone"}`,
+		`{"brand":"Apple"}`,
+		`{"name":"   ","brand":"Apple"}`,
+		`not json`,
+	}
 	for _, body := range bodies {
 		w := doRequest(r, "POST", "/devices", body)
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("body %s: expected 400, got %d", body, w.Code)
 		}
+	}
+}
+
+func TestCreateDeviceTrimsSpaces(t *testing.T) {
+	r := setupRouter(t)
+
+	w := doRequest(r, "POST", "/devices", `{"name":"  iPhone 15 ","brand":" Apple"}`)
+	d := decodeDevice(t, w)
+	if d.Name != "iPhone 15" || d.Brand != "Apple" {
+		t.Errorf("expected trimmed values, got %+v", d)
 	}
 }
 
@@ -107,6 +123,7 @@ func TestListDevices(t *testing.T) {
 		{"/devices", 3},
 		{"/devices?brand=Apple", 2},
 		{"/devices?brand=apple", 2},
+		{"/devices?brand=%20Apple%20", 2},
 		{"/devices?brand=Nokia", 0},
 	}
 
@@ -166,8 +183,22 @@ func TestPatchDevice(t *testing.T) {
 	if w := doRequest(r, "PATCH", "/devices/1", `{"brand":""}`); w.Code != http.StatusBadRequest {
 		t.Errorf("expected 400, got %d", w.Code)
 	}
+	if w := doRequest(r, "PATCH", "/devices/1", `{"name":"  "}`); w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 for blank name, got %d", w.Code)
+	}
 	if w := doRequest(r, "PATCH", "/devices/42", `{"name":"x"}`); w.Code != http.StatusNotFound {
 		t.Errorf("expected 404, got %d", w.Code)
+	}
+}
+
+func TestMethodNotAllowed(t *testing.T) {
+	r := setupRouter(t)
+
+	if w := doRequest(r, "DELETE", "/devices", ""); w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected 405, got %d", w.Code)
+	}
+	if w := doRequest(r, "POST", "/devices/1", `{}`); w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("expected 405, got %d", w.Code)
 	}
 }
 

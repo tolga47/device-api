@@ -2,6 +2,7 @@ package device
 
 import "time"
 
+// Device is a single device record. ID and CreatedAt are set by the server.
 type Device struct {
 	ID        int64     `json:"id"`
 	Name      string    `json:"name"`

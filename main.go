@@ -23,6 +23,7 @@ func main() {
 	defer store.Close()
 
 	r := gin.Default()
+	r.HandleMethodNotAllowed = true
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})

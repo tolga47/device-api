@@ -8,6 +8,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+// ErrNotFound is returned when there is no device with the given id.
 var ErrNotFound = errors.New("device not found")
 
 const schema = `
@@ -18,10 +19,12 @@ CREATE TABLE IF NOT EXISTS devices (
 	created_at DATETIME NOT NULL
 )`
 
+// Store keeps devices in a SQLite database.
 type Store struct {
 	db *sql.DB
 }
 
+// NewStore opens the database at path and creates the table if needed.
 func NewStore(path string) (*Store, error) {
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
@@ -40,6 +43,7 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
+// Create inserts d and sets its ID.
 func (s *Store) Create(ctx context.Context, d *Device) error {
 	res, err := s.db.ExecContext(ctx,
 		"INSERT INTO devices (name, brand, created_at) VALUES (?, ?, ?)",
@@ -89,6 +93,7 @@ func (s *Store) List(ctx context.Context, brand string) ([]Device, error) {
 	return devices, rows.Err()
 }
 
+// Update saves name and brand. created_at is left as it is.
 func (s *Store) Update(ctx context.Context, d Device) error {
 	res, err := s.db.ExecContext(ctx,
 		"UPDATE devices SET name = ?, brand = ? WHERE id = ?",
@@ -107,6 +112,7 @@ func (s *Store) Delete(ctx context.Context, id int64) error {
 	return checkFound(res)
 }
 
+// checkFound turns "no rows affected" into ErrNotFound.
 func checkFound(res sql.Result) error {
 	n, err := res.RowsAffected()
 	if err != nil {

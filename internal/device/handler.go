@@ -6,11 +6,13 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
+// Handler serves the /devices endpoints.
 type Handler struct {
 	store *Store
 }
@@ -19,6 +21,7 @@ func NewHandler(store *Store) *Handler {
 	return &Handler{store: store}
 }
 
+// Register adds the device routes to r.
 func (h *Handler) Register(r *gin.Engine) {
 	r.POST("/devices", h.create)
 	r.GET("/devices", h.list)
@@ -28,6 +31,7 @@ func (h *Handler) Register(r *gin.Engine) {
 	r.DELETE("/devices/:id", h.delete)
 }
 
+// deviceRequest is the body for POST and PUT, both fields are required.
 type deviceRequest struct {
 	Name  string `json:"name"`
 	Brand string `json:"brand"`
@@ -99,6 +103,7 @@ func (h *Handler) update(c *gin.Context) {
 	c.JSON(http.StatusOK, d)
 }
 
+// patch only changes the fields that are in the body.
 func (h *Handler) patch(c *gin.Context) {
 	id, ok := parseID(c)
 	if !ok {
@@ -109,6 +114,12 @@ func (h *Handler) patch(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid json body"})
 		return
+	}
+	if req.Name != nil {
+		*req.Name = strings.TrimSpace(*req.Name)
+	}
+	if req.Brand != nil {
+		*req.Brand = strings.TrimSpace(*req.Brand)
 	}
 	if (req.Name != nil && *req.Name == "") || (req.Brand != nil && *req.Brand == "") {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "name and brand cannot be empty"})
@@ -149,7 +160,8 @@ func (h *Handler) delete(c *gin.Context) {
 
 // list handles both "list all" and "search by brand" via ?brand=
 func (h *Handler) list(c *gin.Context) {
-	devices, err := h.store.List(c.Request.Context(), c.Query("brand"))
+	brand := strings.TrimSpace(c.Query("brand"))
+	devices, err := h.store.List(c.Request.Context(), brand)
 	if err != nil {
 		handleError(c, err)
 		return
@@ -157,12 +169,16 @@ func (h *Handler) list(c *gin.Context) {
 	c.JSON(http.StatusOK, devices)
 }
 
+// bindDevice reads and validates the body. On failure it writes the
+// 400 response itself, so callers just return.
 func bindDevice(c *gin.Context) (deviceRequest, bool) {
 	var req deviceRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid json body"})
 		return req, false
 	}
+	req.Name = strings.TrimSpace(req.Name)
+	req.Brand = strings.TrimSpace(req.Brand)
 	if req.Name == "" || req.Brand == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "name and brand are required"})
 		return req, false
@@ -179,6 +195,8 @@ func parseID(c *gin.Context) (int64, bool) {
 	return id, true
 }
 
+// handleError sends 404 for missing devices and 500 for anything else.
+// The real error is only logged, not returned to the client.
 func handleError(c *gin.Context, err error) {
 	if errors.Is(err, ErrNotFound) {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})

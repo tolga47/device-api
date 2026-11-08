@@ -14,6 +14,15 @@ The server listens on `:8080`. Data is stored in `devices.db` by default; set `D
 DB_PATH=/tmp/devices.db go run .
 ```
 
+## Running with Docker
+
+```bash
+docker build -t device-api .
+docker run -p 8080:8080 -v device-data:/data device-api
+```
+
+The database lives in the `device-data` volume, so it survives container restarts.
+
 ## Tests
 
 ```bash
